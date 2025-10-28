@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>ARA Chatbot</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Hier werden die Chat-Nachrichten angezeigt -->
+        <div id="chat-box"></div>
+
+        <!-- Formular für Benutzereingaben -->
+        <form id="chat-form">
+            <input type="text" id="user-input" placeholder="Frag mich etwas über mich...">
+            <button type="submit">Senden</button>
+        </form>
+
+        <!-- Zusätzliche Buttons für Chat-Verlauf -->
+        <div class="controls">
+            <button id="show-history">Verlauf anzeigen</button>
+            <button id="clear-history">Verlauf löschen</button>
+            <button id="download-history">Verlauf exportieren</button>
+        </div>
+
+        <!-- E-Mail-Funktion -->
+        <div class="email-section">
+            <input type="email" id="email-input" placeholder="Deine E-Mail-Adresse">
+            <button id="send-email">Verlauf per E-Mail senden</button>
+        </div>
+    </div>
+
+    <script>
+        // Elemente aus dem DOM holen
+        const form = document.getElementById('chat-form');
+        const chatBox = document.getElementById('chat-box');
+        const input = document.getElementById('user-input');
+
+        // Funktion zum Hinzufügen einer Nachricht im Chat
+        function addMessage(sender, text) {
+            const msg = document.createElement("div"); // neues div für die Nachricht
+            msg.className = sender === "user" ? "user-msg" : "bot-msg"; // unterschiedliche Styles für User und Bot
+            msg.textContent = text; // Textinhalt setzen
+            chatBox.appendChild(msg); // Nachricht in Chat-Box einfügen
+            chatBox.scrollTop = chatBox.scrollHeight; // Scrollt automatisch nach unten
+        }
+
+        // Event-Listener für das Absenden von Nachrichten
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Verhindert, dass die Seite neu lädt
+            const message = input.value.trim(); // Nachricht holen und Leerzeichen entfernen
+            if (!message) return; // nichts tun, wenn leer
+            addMessage("user", message); // Nachricht des Users anzeigen
+            input.value = ""; // Eingabefeld leeren
+
+            // Anfrage an den Server, um Bot-Antwort zu erhalten
+            const res = await fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message })
+            });
+            const data = await res.json();
+            addMessage("bot", data.reply); // Bot-Antwort anzeigen
+        });
+
+        // Verlauf anzeigen
+        document.getElementById("show-history").addEventListener("click", async () => {
+            const res = await fetch("/history"); // Server-Endpunkt abrufen
+            const data = await res.json();
+            if (data.length === 0) {
+                addMessage("bot", "(Der Verlauf ist leer.)");
+            } else {
+                addMessage("bot", "--- Verlauf ---");
+                data.forEach(entry => {
+                    addMessage("user", entry.frage);    // User-Frage anzeigen
+                    addMessage("bot", entry.antwort);   // Bot-Antwort anzeigen
+                });
+                addMessage("bot", "--- Ende Verlauf ---");
+            }
+        });
+
+        // Verlauf löschen
+        document.getElementById("clear-history").addEventListener("click", async () => {
+            await fetch("/clear-history", { method: "POST" }); // Anfrage zum Löschen
+            chatBox.innerHTML = ""; // Chat-Fenster leeren
+            addMessage("bot", "✅ Verlauf wurde gelöscht."); // Bestätigung anzeigen
+        });
+
+        // Verlauf herunterladen
+        document.getElementById("download-history").addEventListener("click", () => {
+            window.location.href = "/download-history"; // Datei herunterladen
+        });
+
+        // Verlauf per E-Mail senden
+        document.getElementById("send-email").addEventListener("click", async () => {
+            const email = document.getElementById("email-input").value.trim(); // E-Mail aus Feld holen
+            if (!email) {
+                alert("Bitte gib eine gültige E-Mail-Adresse ein."); // Validierung
+                return;
+            }
+            const res = await fetch("/send-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }) // E-Mail an Server senden
+            });
+            const data = await res.json();
+            alert(data.message); // Rückmeldung anzeigen
+        });
+    </script>
+</body>
+</html>
